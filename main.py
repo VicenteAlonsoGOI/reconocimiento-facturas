@@ -25,13 +25,22 @@ def procesar_todo(input_folder, output_base):
             print(f"--- Procesando Expediente: {item} ---")
             todas_las_facturas = []
             
-            # Buscar ZIPs dentro del expediente
+            # Buscar archivos (ZIPs o PDFs) dentro del expediente
             for file in os.listdir(expediente_path):
+                file_path = os.path.join(expediente_path, file)
+                
+                # Caso 1: Archivo ZIP
                 if file.lower().endswith('.zip'):
-                    zip_path = os.path.join(expediente_path, file)
                     print(f"  Analizando ZIP: {file}...")
-                    datos_zip = extractor.procesar_zip(zip_path)
+                    datos_zip = extractor.procesar_zip(file_path)
                     todas_las_facturas.extend(datos_zip)
+                
+                # Caso 2: PDF directo
+                elif file.lower().endswith('.pdf'):
+                    print(f"  Analizando PDF directo: {file}...")
+                    datos_pdf = extractor.extraer_datos_pdf(file_path)
+                    if datos_pdf:
+                        todas_las_facturas.extend([datos_pdf] if isinstance(datos_pdf, dict) else datos_pdf)
             
             # Si hay facturas, generar el Excel para este expediente
             if todas_las_facturas:

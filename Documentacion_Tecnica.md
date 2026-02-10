@@ -11,7 +11,7 @@ Este documento detalla la lógica interna del script de automatización para fac
 │   ├── extractor.py        # Lógica de PDF/ZIP (pdfplumber + regex)
 │   ├── excel_manager.py    # Generación de informes (openpyxl)
 │   └── utils.py            # Funciones de limpieza de datos
-├── Expedientes/            # Carpeta de entrada (Input)
+├── Expedientes/            # Carpeta de entrada (acepta .zip y .pdf directos)
 └── Resultados_Procesados/  # Carpeta de salida (Output)
 ```
 
