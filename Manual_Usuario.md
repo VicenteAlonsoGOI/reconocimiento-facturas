@@ -26,9 +26,16 @@ Este sistema permite procesar expedientes con facturas en formato ZIP y generar 
 ## 📊 ¿Qué datos se extraen?
 El sistema busca automáticamente en cada factura:
 - **Número de Factura**
-- **Fecha** (normalizada a DD/MM/YYYY)
+- **Fecha de Factura** (normalizada a DD/MM/YYYY)
+- **Fecha de Cargo** (fecha de cobro bancario, si existe)
 - **Base Imponible**
+- **Total** (importe final de la factura)
 - **IVA** (si hay varios tipos, se mostrarán todos desglosados)
+
+### 🛡️ Filtrado Inteligente
+El programa incluye un sistema para mantener tus informes limpios:
+- **Ignora automáticamente** archivos que no sean facturas (como contratos o cartas).
+- **Evita capturas erróneas** descartando documentos donde no se detecte un importe total válido.
 
 ## ⚠️ Solución de problemas comunes
 - **Error de Python**: Asegúrate de tener Python instalado en el ordenador.

@@ -32,13 +32,22 @@ Este documento detalla la lógica interna del script de automatización para fac
 
 ## 🔍 Motor de Extracción
 Ubicado en `extractor.py`, utiliza **Regex (Expresiones Regulares)** para buscar patrones de texto:
-- **Número de Factura**: Busca palabras clave como "Factura nº", "Nº Factura", "Invoice".
+- **Número de Factura**: Busca palabras clave como "Factura nº", "Nº Factura", "Invoice". Se ha refinado para ignorar etiquetas como "Tlfno" o "Fax".
+- **Fechas**: Se extraen por separado la "Fecha de Factura" (emisión) y la "Fecha de Cargo" (vencimiento/cobro).
+- **Importes**: Captura tanto la "Base Imponible" como el "Total" de la factura.
 - **IVAs Múltiples**: El script busca todas las apariciones de porcentajes de IVA y sus importes asociados, acumulándolos en una cadena de texto para el Excel.
+
+## 🛡️ Lógica de Filtrado Inteligente
+Para asegurar que los informes contengan solo facturas válidas, se aplican dos niveles de filtrado:
+1. **Filtro por Nombre**: Se omiten archivos que contengan palabras como "CONTRATO" o "CARTA" en su nombre.
+2. **Filtro por Contenido**: Si tras procesar el PDF no se encuentra un Número de Factura Y el Total es 0, el documento se considera irrelevante y no se añade al Excel.
 
 ## 📦 Despliegue y GitHub
 - El proyecto está estructurado para ser autocontenido.
 - El `.bat` gestiona las dependencias automáticamente (`pdfplumber`, `openpyxl`).
-- Para subir a **GitHub**, se recomienda ignorar las carpetas de datos temporales creando un `.gitignore`.
+- Los informes generados y los datos de entrada están excluidos en el `.gitignore`.
 
 ## ⚙️ Mantenimiento
-Para añadir nuevos campos de extracción, simplemente añade el patrón regex en el diccionario `self.patterns` de la clase `InvoiceExtractor`.
+Para añadir nuevos campos de extracción o ajustar el filtrado:
+- Patrones: Añade el patrón regex en el diccionario `self.patterns` en `extractor.py`.
+- Reglas de exclusión: Modifica el método `extraer_datos_pdf` en `extractor.py`.
