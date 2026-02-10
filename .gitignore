@@ -1,0 +1,19 @@
+# Datos de entrada y salida
+Expedientes/
+Resultados_Procesados/
+debug_pdfs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Temporales y logs
+*.zip
+*.xlsx
+*.log
+debug_text.py
+test_regex.py
+verify_excel.py
+verify_split_dates.py
