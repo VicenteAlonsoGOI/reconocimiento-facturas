@@ -10,10 +10,10 @@ class InvoiceExtractor:
         # Patrones regex para búsqueda de datos
         self.patterns = {
             'numero_factura': [
-                # Buscar específicamente códigos que parezcan facturas (letras y números mixtos, guiones, etc)
-                r'(?:N.|Nº|N|No|No.|Número|Factura|Invoice)\s*(?:de\s+)?factura\s*[:\s]*([a-zA-Z0-9\-/.\\]{3,})',
-                r'Nº\s*([a-zA-Z0-9\-/.\\]{5,})',
-                r'Factura\s+([a-zA-Z0-9\-/.\\]{5,})',
+                # Buscar específicamente códigos que parezcan facturas (evitando palabras comunes como Tlfno)
+                r'(?:N.|Nº|N|No|No.|Número|Factura|Invoice)\s*(?:de\s+)?factura\s*[:\s]*(?!(?:Tlfno|Tel|Teléfono|Fax))([a-zA-Z0-9\-/.\\]{3,})',
+                r'Nº\s*(?!(?:Tlfno|Tel|Teléfono|Fax))([a-zA-Z0-9\-/.\\]{5,})',
+                r'Factura\s+(?!(?:Tlfno|Tel|Teléfono|Fax))([a-zA-Z0-9\-/.\\]{5,})',
             ],
             'fecha_factura': [
                 r'Fecha\s*(?:de\s+)?(?:factura|emisión|expedición)\s*[:\s]*(\d{2}[-./]\d{2}[-./]\d{2,4})',
@@ -30,6 +30,8 @@ class InvoiceExtractor:
                 r'TOTAL\s*(?:IMPORTE\s*)?FACTURA\s*[:\s]*([\d.,]+)',
                 r'TOTAL\s*A\s*PAGAR\s*[:\s]*([\d.,]+)',
                 r'IMPORTE\s*TOTAL\s*[:\s]*([\d.,]+)',
+                # Buscar un total genérico si los anteriores fallan (con precaución)
+                r'TOTAL\s*[:\s]*([\d.,]+)\s*€',
             ],
             'iva': [
                 # Formato: 21,00 % s/68,14 14,31 (captura 21% y 14,31)
@@ -42,6 +44,12 @@ class InvoiceExtractor:
 
     def extraer_datos_pdf(self, pdf_path):
         """Extrae texto de un PDF y busca los campos requeridos."""
+        filename = os.path.basename(pdf_path).lower()
+        
+        # Filtro inicial por nombre de archivo
+        if 'contrato' in filename or 'carta' in filename:
+            return None
+
         datos = {
             'Factura': 'No encontrado',
             'Fecha Factura': 'No encontrado',
@@ -108,8 +116,13 @@ class InvoiceExtractor:
                 
                 datos['IVA'] = ", ".join(list(set(ivas_encontrados))) if ivas_encontrados else "0%"
                 
+                # Filtro final: Si no hay factura ni total, probablemente no sea una factura válida
+                if datos['Factura'] == 'No encontrado' and datos['Total'] == 0.0:
+                    return None
+
         except Exception as e:
             print(f"Error procesando {pdf_path}: {e}")
+            return None
             
         return datos
 
@@ -126,7 +139,8 @@ class InvoiceExtractor:
                             if file.lower().endswith('.pdf'):
                                 pdf_path = os.path.join(root, file)
                                 datos = self.extraer_datos_pdf(pdf_path)
-                                lista_datos.append(datos)
+                                if datos: # Solo añadir si pasó los filtros
+                                    lista_datos.append(datos)
             except Exception as e:
                 print(f"Error con el ZIP {zip_path}: {e}")
         
