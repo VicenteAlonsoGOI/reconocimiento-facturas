@@ -38,6 +38,11 @@ Ubicado en `extractor.py`, utiliza **Regex (Expresiones Regulares)** para buscar
 - **Fechas**: Se extraen por separado la "Fecha de Factura" (emisión) y la "Fecha de Cargo" (vencimiento/cobro).
 - **Importes**: Captura tanto la "Base Imponible" como el "Total" de la factura.
 - **IVAs Múltiples (V2)**: El script analiza el texto para extraer **Base Imponible** y **Cuota** por cada tipo de IVA (5%, 10%, 21%), devolviendo una estructura de datos detallada en lugar de texto plano.
+- **Soporte para Montos Negativos (V2.2)**: Los patrones regex incluyen `-?` (signo negativo opcional) para capturar correctamente:
+  - Facturas rectificativas (notas de crédito)
+  - Abonos y devoluciones
+  - Ajustes con importes negativos
+  - Ejemplo: `-78,26 €` se captura correctamente como -78.26
 - **Inferencia de IVA (V2.2)**: Si no se encuentra desglose explícito de IVA pero sí hay Base Imponible y Total:
   1. Calcula el IVA como: `IVA = Total - Base Imponible`
   2. Determina el ratio: `(IVA / Base) * 100`
