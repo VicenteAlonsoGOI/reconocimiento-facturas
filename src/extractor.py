@@ -117,13 +117,13 @@ class InvoiceExtractor:
                 
                 # Patrones mejorados para capturar (Base, Tipo, Cuota) cuando sea posible
                 # Caso 1: Estándar (Base ... Tipo ... Cuota) o (Tipo ... Base ... Cuota)
-                # Ejemplo: 21% s/100.00 21.00
+                # Ejemplo: 21% s/-100.00 -21.00 (con negativos)
                 patrones_detallados = [
-                    r'(\d{1,2})\s*%\s*s/\s*([\d.,]+)\s+([\d.,]+)',  # 21% s/ 100.00 21.00
-                    r'Base\s*[:\s]*([\d.,]+)\s+IVA\s*[:\s]*(\d{1,2})\s*%\s+Cuota\s*[:\s]*([\d.,]+)', # Base: 100 IVA: 21% Cuota: 21
-                    r'(?:Base|BI)\s*(\d{1,2})%\s*[:\s]*([\d.,]+)', # Base 21%: 100.00 (Solo Base)
-                    r'IVA\s*(\d{1,2})%\s*[:\s]*([\d.,]+)', # IVA 21%: 21.00 (Solo Cuota)
-                    r'\((\d{1,2})%\)[^\n]+?\s+([\d.,]+)(?:\s|$)' # (21%) ... 21.00
+                    r'(\d{1,2})\s*%\s*s/\s*(-?[\d.,]+)\s+(-?[\d.,]+)',  # 21% s/ -100.00 -21.00
+                    r'Base\s*[:\s]*(-?[\d.,]+)\s+IVA\s*[:\s]*(\d{1,2})\s*%\s+Cuota\s*[:\s]*(-?[\d.,]+)', # Base: -100 IVA: 21% Cuota: -21
+                    r'(?:Base|BI)\s*(\d{1,2})%\s*[:\s]*(-?[\d.,]+)', # Base 21%: -100.00 (Solo Base)
+                    r'IVA\s*(\d{1,2})%\s*[:\s]*(-?[\d.,]+)', # IVA 21%: -21.00 (Solo Cuota)
+                    r'\((\d{1,2})%\)[^\n]+?\s+(-?[\d.,]+)(?:\s|$)' # (21%) ... -21.00
                 ]
 
                 # Primera pasada: Buscar bloques completos (Base + Cuota)
@@ -171,8 +171,9 @@ class InvoiceExtractor:
                 
                 # Post-procesado: Si tenemos Cuota pero Base es 0, intentar calcular Base (Cuota / (Tipo/100))
                 # Esto es útil si el OCR falló en leer la base pero leyó bien la cuota
+                # NOTA: Funciona también con negativos ya que mantiene el signo
                 for tipo, datos_iva in ivas_estructurados.items():
-                    if datos_iva['cuota'] > 0 and datos_iva['base'] == 0:
+                    if abs(datos_iva['cuota']) > 0 and datos_iva['base'] == 0:
                         try:
                             tasa = float(tipo)
                             datos_iva['base'] = round(datos_iva['cuota'] / (tasa / 100), 2)
