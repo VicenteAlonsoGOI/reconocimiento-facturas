@@ -23,22 +23,26 @@ class InvoiceExtractor:
                 r'Fecha\s*(?:de\s+)?cargo\s*[:\s]*(\d{2}[-./]\d{2}[-./]\d{2,4})',
             ],
             'base_imponible': [
-                r'Base\s*imponible\s*[:\s]*([\d.,]+)',
-                r'TOTAL\s*BASE\s*[:\s]*([\d.,]+)',
+                r'Base\s*imponible\s*[:\s]*(-?[\d.,]+)',
+                r'TOTAL\s*BASE\s*[:\s]*(-?[\d.,]+)',
             ],
             'total': [
-                r'TOTAL\s*(?:IMPORTE\s*)?FACTURA\s*[:\s]*([\d.,]+)',
-                r'TOTAL\s*A\s*PAGAR\s*[:\s]*([\d.,]+)',
-                r'IMPORTE\s*TOTAL\s*[:\s]*([\d.,]+)',
+                r'TOTAL\s*(?:IMPORTE\s*)?FACTURA\s*[:\s]*(-?[\d.,]+)',
+                r'TOTAL\s*A\s*PAGAR\s*[:\s]*(-?[\d.,]+)',
+                r'IMPORTE\s*TOTAL\s*[:\s]*(-?[\d.,]+)',
                 # Buscar un total genérico si los anteriores fallan (con precaución)
-                r'TOTAL\s*[:\s]*([\d.,]+)\s*€',
+                r'TOTAL\s*[:\s]*(-?[\d.,]+)\s*€',
+                # Patrón específico para facturas de electricidad (Plenitude)
+                r'IMPORTE\s*FACTURA\s*[:\s]*(-?[\d.,]+)\s*€',
             ],
             'iva': [
-                # Formato: 21,00 % s/68,14 14,31 (captura 21% y 14,31)
-                r'(\d{1,2})\s*,\s*00\s*%\s*s/[\d.,]+\s+([\d.,]+)',
-                # Formato: IVA (21%) ... 14,31
-                r'\((\d{1,2})%\)[^\n]+?\s+([\d.,]+)(?:\s|$)',
-                r'IVA\s*(\d{1,2})%\s*[:\s]*([\d.,]+)',
+                # Formato: 21,00 % s/68,14 14,31 (captura 21% y -14,31 si es negativo)
+                r'(\d{1,2})\s*,\s*00\s*%\s*s/[\d.,]+\s+(-?[\d.,]+)',
+                # Formato: IVA (21%) ... -14,31
+                r'\((\d{1,2})%\)[^\n]+?\s+(-?[\d.,]+)(?:\s|$)',
+                r'IVA\s*(\d{1,2})%\s*[:\s]*(-?[\d.,]+)',
+                # Formato específico: IVA General (21%) ... -13,58 €
+                r'IVA\s*General\s*\((\d{1,2})%\)\s*[^\n]*?(-?[\d.,]+)\s*€',
             ]
         }
 
