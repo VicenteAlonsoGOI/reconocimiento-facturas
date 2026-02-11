@@ -17,3 +17,6 @@ debug_text.py
 test_regex.py
 verify_excel.py
 verify_split_dates.py
+debug_factura.py
+test_*.py
+test_*.xlsx
