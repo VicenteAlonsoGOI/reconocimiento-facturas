@@ -207,11 +207,13 @@ class InvoiceExtractor:
 
                 datos['IVA'] = ivas_estructurados
                 
-                # Filtro final: Si no hay factura ni total, descartar.
-                if datos['Factura'] == 'No encontrado' and datos['Total'] == 0.0:
+                # Filtro final: Si no hay factura ni total (en valor absoluto), descartar.
+                # Permitimos montos negativos (notas de crédito)
+                if datos['Factura'] == 'No encontrado' and abs(datos['Total']) == 0.0:
                     return None
                 
-                # Filtro extra de seguridad: Si el total es 0, y la factura parece sospechosa (ej: muy corta o texto), descartar
+                # Filtro extra de seguridad: Si el total es 0 (no negativo), y la factura parece sospechosa, descartar
+                # Permitimos negativos porque son notas de crédito válidas
                 if datos['Total'] == 0.0 and (len(datos['Factura']) < 3 or datos['Factura'].isalpha()):
                     return None
 
