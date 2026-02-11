@@ -5,9 +5,13 @@ def limpiar_moneda(texto):
     """
     Convierte un string tipo '1.234,56 €' o '56,00' a float.
     Maneja puntos de miles y comas decimales (formato español).
+    Soporta montos negativos (notas de crédito/abono).
     """
     if not texto:
         return 0.0
+    
+    # Detectar si es negativo ANTES de limpiar
+    es_negativo = '-' in texto
     
     # Eliminar símbolo de euro y espacios
     limpio = texto.replace('€', '').strip()
@@ -20,10 +24,16 @@ def limpiar_moneda(texto):
         elif ',' in limpio:
             limpio = limpio.replace(',', '.')
         
-        # Eliminar cualquier otro carácter no numérico excepto el punto decimal
-        limpio = re.sub(r'[^\d.]', '', limpio)
+        # Eliminar cualquier otro carácter no numérico excepto el punto decimal y signo negativo
+        limpio = re.sub(r'[^\d.-]', '', limpio)
         
-        return float(limpio)
+        valor = float(limpio)
+        
+        # Aplicar signo negativo si se detectó y el valor es positivo
+        if es_negativo and valor > 0:
+            valor = -valor
+            
+        return valor
     except (ValueError, TypeError):
         return 0.0
 

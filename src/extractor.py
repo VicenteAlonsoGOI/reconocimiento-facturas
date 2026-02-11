@@ -47,7 +47,7 @@ class InvoiceExtractor:
         filename = os.path.basename(pdf_path).lower()
         
         # Filtro inicial por nombre de archivo
-        if 'contrato' in filename or 'carta' in filename:
+        if any(x in filename for x in ['contrato', 'carta', 'firma']):
             return None
 
         datos = {
@@ -70,8 +70,11 @@ class InvoiceExtractor:
                 for p in self.patterns['numero_factura']:
                     match = re.search(p, texto_completo, re.IGNORECASE)
                     if match:
-                        datos['Factura'] = match.group(1).strip()
-                        break
+                        f_candidate = match.group(1).strip()
+                        # Validar que no sea una palabra común prohibida si se capturó algo por error
+                        if not re.match(r'^(serie|import|total|fecha|factura)$', f_candidate, re.IGNORECASE):
+                            datos['Factura'] = f_candidate
+                            break
                 
                 # Buscar Fecha Factura
                 for p in self.patterns['fecha_factura']:
@@ -101,23 +104,115 @@ class InvoiceExtractor:
                         datos['Total'] = limpiar_moneda(match.group(1))
                         break
                 
-                # Buscar IVAs (pueden ser múltiples)
-                ivas_encontrados = []
-                for p in self.patterns['iva']:
+                # Buscar IVAs (pueden ser múltiples) y estructurarlos
+                ivas_estructurados = {
+                    '5': {'base': 0.0, 'cuota': 0.0},
+                    '10': {'base': 0.0, 'cuota': 0.0},
+                    '21': {'base': 0.0, 'cuota': 0.0}
+                }
+                
+                # Patrones mejorados para capturar (Base, Tipo, Cuota) cuando sea posible
+                # Caso 1: Estándar (Base ... Tipo ... Cuota) o (Tipo ... Base ... Cuota)
+                # Ejemplo: 21% s/100.00 21.00
+                patrones_detallados = [
+                    r'(\d{1,2})\s*%\s*s/\s*([\d.,]+)\s+([\d.,]+)',  # 21% s/ 100.00 21.00
+                    r'Base\s*[:\s]*([\d.,]+)\s+IVA\s*[:\s]*(\d{1,2})\s*%\s+Cuota\s*[:\s]*([\d.,]+)', # Base: 100 IVA: 21% Cuota: 21
+                    r'(?:Base|BI)\s*(\d{1,2})%\s*[:\s]*([\d.,]+)', # Base 21%: 100.00 (Solo Base)
+                    r'IVA\s*(\d{1,2})%\s*[:\s]*([\d.,]+)', # IVA 21%: 21.00 (Solo Cuota)
+                    r'\((\d{1,2})%\)[^\n]+?\s+([\d.,]+)(?:\s|$)' # (21%) ... 21.00
+                ]
+
+                # Primera pasada: Buscar bloques completos (Base + Cuota)
+                for p in patrones_detallados[:2]:
                     matches = re.finditer(p, texto_completo, re.IGNORECASE)
                     for match in matches:
-                        if len(match.groups()) == 2:
-                            porc = match.group(1)
-                            imp = limpiar_moneda(match.group(2))
-                            ivas_encontrados.append(f"{porc}%: {imp}")
-                        else:
-                            imp = limpiar_moneda(match.group(1))
-                            ivas_encontrados.append(f"IVA: {imp}")
+                        try:
+                            # Detectar orden de grupos según patrón
+                            if 's/' in p: # Patrón 1: Tipo, Base, Cuota
+                                tipo = match.group(1)
+                                base = float(limpiar_moneda(match.group(2)))
+                                cuota = float(limpiar_moneda(match.group(3)))
+                            else: # Patrón 2: Base, Tipo, Cuota
+                                base = float(limpiar_moneda(match.group(1)))
+                                tipo = match.group(2)
+                                cuota = float(limpiar_moneda(match.group(3)))
+                            
+                            if tipo in ivas_estructurados:
+                                ivas_estructurados[tipo]['base'] += base
+                                ivas_estructurados[tipo]['cuota'] += cuota
+                        except:
+                            continue
+
+                # Segunda pasada: Buscar datos sueltos si no se encontraron completos
+                # Si una factura tiene desglose simple, intentamos capturar al menos la cuota o la base
+                for p in patrones_detallados[2:]:
+                    matches = re.finditer(p, texto_completo, re.IGNORECASE)
+                    for match in matches:
+                        try:
+                            tipo = match.group(1)
+                            valor = float(limpiar_moneda(match.group(2)))
+                            
+                            if tipo in ivas_estructurados:
+                                # Diferenciar si capturamos Base o Cuota según el patrón
+                                if 'Base' in p or 'BI' in p:
+                                    # Si ya tenemos base (de la pasada anterior), sumamos; si no, asignamos
+                                    # Evitar duplicar si ya se capturó en la pasada detallada
+                                    if ivas_estructurados[tipo]['base'] == 0.0: 
+                                        ivas_estructurados[tipo]['base'] += valor
+                                else: # Asumimos Cuota
+                                    if ivas_estructurados[tipo]['cuota'] == 0.0:
+                                        ivas_estructurados[tipo]['cuota'] += valor
+                        except:
+                            continue
                 
-                datos['IVA'] = ", ".join(list(set(ivas_encontrados))) if ivas_encontrados else "0%"
+                # Post-procesado: Si tenemos Cuota pero Base es 0, intentar calcular Base (Cuota / (Tipo/100))
+                # Esto es útil si el OCR falló en leer la base pero leyó bien la cuota
+                for tipo, datos_iva in ivas_estructurados.items():
+                    if datos_iva['cuota'] > 0 and datos_iva['base'] == 0:
+                        try:
+                            tasa = float(tipo)
+                            datos_iva['base'] = round(datos_iva['cuota'] / (tasa / 100), 2)
+                        except:
+                            pass
+                    # Y viceversa: Si tenemos Base pero Cuota 0
+                    elif datos_iva['base'] > 0 and datos_iva['cuota'] == 0:
+                        try:
+                            tasa = float(tipo)
+                            datos_iva['cuota'] = round(datos_iva['base'] * (tasa / 100), 2)
+                        except:
+                            pass
+
+                # Inferencia de IVA: Si no hay ningún desglose pero sí Base Imponible y Total
+                # Esto maneja facturas sin desglose explícito de IVA
+                if all(datos_iva['cuota'] == 0 for datos_iva in ivas_estructurados.values()):
+                    if datos['Base Imponible'] > 0 and datos['Total'] > 0:
+                        iva_total = datos['Total'] - datos['Base Imponible']
+                        
+                        if abs(iva_total) > 0.01:  # Tolerancia para evitar errores de redondeo
+                            # Inferir tipo de IVA según ratio
+                            ratio = abs((iva_total / datos['Base Imponible']) * 100)
+                            
+                            # Asignar al tipo más cercano con tolerancia ±2%
+                            if abs(ratio - 21) < 2:
+                                tipo_inferido = '21'
+                            elif abs(ratio - 10) < 2:
+                                tipo_inferido = '10'
+                            elif abs(ratio - 5) < 2:
+                                tipo_inferido = '5'
+                            else:
+                                tipo_inferido = '21'  # Por defecto 21% si no coincide
+                            
+                            ivas_estructurados[tipo_inferido]['base'] = datos['Base Imponible']
+                            ivas_estructurados[tipo_inferido]['cuota'] = round(iva_total, 2)
+
+                datos['IVA'] = ivas_estructurados
                 
-                # Filtro final: Si no hay factura ni total, probablemente no sea una factura válida
+                # Filtro final: Si no hay factura ni total, descartar.
                 if datos['Factura'] == 'No encontrado' and datos['Total'] == 0.0:
+                    return None
+                
+                # Filtro extra de seguridad: Si el total es 0, y la factura parece sospechosa (ej: muy corta o texto), descartar
+                if datos['Total'] == 0.0 and (len(datos['Factura']) < 3 or datos['Factura'].isalpha()):
                     return None
 
         except Exception as e:
